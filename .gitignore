@@ -1,0 +1,4 @@
+.vscode/*
+test/JpegParser.*
+**/*.out
+**/*.log
