@@ -76,36 +76,94 @@ bool jpegDecoder::read_data() {
     for ( int i = 0; i < h; i++ ) {
         for ( int j = 0; j < w; j++ ) {
             // printf("MCU (%d,%d)\n", i, j);
-            read_MCU();
+            MCU mcu = read_MCU();
         }
     } return true;
 }
 
-bool jpegDecoder::read_MCU() {
+MCU jpegDecoder::read_MCU() { MCU mcu;
     for ( unsigned char i = 0; i < this->components_num; i++ ) {
         component* cpt = &(this->components[i]);
         for ( unsigned char h = 0; h < cpt->hori; h++ ) {
             for ( unsigned char w = 0; w < cpt->vert; w++ ) {
+                double* block = mcu.blocks[i][h][w];
+
                 // printf("\tDataUnit: (%d,%d,%d)\n", i, h, w);
                 // printf("\t\tDC Predictor: %d\n\t\tDC:\n",
                 //     this->components[i].DC_predictor);
-                el_code DC = this->read_DC(
+                DC_code DC = this->read_DC(
                     cpt->ht_DC, &this->components[i].DC_predictor );
+                block[0] = (double)DC.value;
 
                 // printf("\t\tAC:\n");
-                for( int count = 0; count < 63; ) {
-                    el_code AC = read_AC( cpt->ht_AC );
-                    if (AC.size == 0 && AC.zeros == 0) { break; }
+                for( int count = 1; count < 64; ) {
+                    AC_code AC = read_AC( cpt->ht_AC );
+                    if (AC.size == 0 && AC.zeros == 0) {
+                        while ( count < 64 ) {
+                            block[zigzag[count++]] = 0;
+                        } break;
+                    }
                     for (int j = 0; j < AC.zeros; j++) {
-                        count++;
-                    } count++;
+                        block[zigzag[count++]] = 0;
+                    } block[zigzag[count++]] = (double)AC.value;
                 }
+
+                printf("\t\t*Before DeQuantize*\n");
+                for( int j = 0; j < 8; j++ ) {
+                    printf("\t\t");
+                    for ( int k = 0; k < 8; k++ ) {
+                        printf("%4.0f ",block[8*j+k]);
+                    } printf("\n");
+                }
+
+                unsigned short* qt = this->quantization_tables[cpt->qt_id];
+                for( int j = 0; j < 8; j++ ) {
+                    for ( int k = 0; k < 8; k++ ) {
+                        block[8*j+k] *= (double)qt[8*j+k];
+                    }
+                }
+
+                // printf("\t\t*Before IDCT*\n");
+                // for( int j = 0; j < 8; j++ ) {
+                //     printf("\t\t");
+                //     for ( int k = 0; k < 8; k++ ) {
+                //         printf("%4.0f ",block[8*j+k]);
+                //     } printf("\n");
+                // }
+
+                this->IDCT( block );
+
+                // printf("\t\t*After IDCT*\n");
+                // for( int j = 0; j < 8; j++ ) {
+                //     printf("\t\t");
+                //     for ( int k = 0; k < 8; k++ ) {
+                //         printf("%4.0f ",block[8*j+k]);
+                //     } printf("\n");
+                // }
+
+                // this->shift128( block );
+
+                // printf("\t\t*After level shift (+128)*\n");
+                // for( int j = 0; j < 8; j++ ) {
+                //     printf("\t\t");
+                //     for ( int k = 0; k < 8; k++ ) {
+                //         printf("%4.0f ",block[8*j+k]);
+                //     } printf("\n");
+                // }
+            }
+        }
+    }
+
+    if ( this->components_num == 3 ) {
+        for (int h = 0; h < Hmax * 8; h++) {
+            for (int w = 0; w < Vmax * 8; w++) {
+                
             }
         }
     }
 }
 
-unsigned char jpegDecoder::match_huffman_tables( unsigned char ht_info ) {
+unsigned char jpegDecoder::search_symbol( unsigned char ht_info ) {
     huffmanTable_el* ht = this->huffmancode_tables.get(ht_info);
     if ( ht == 0 ) { throw "huffman_table get error"; }
 
@@ -120,27 +178,28 @@ unsigned char jpegDecoder::match_huffman_tables( unsigned char ht_info ) {
     } throw "key not found.";
 }
 
-el_code jpegDecoder::read_DC( unsigned char ht_DC, int* predictor ) {
+DC_code jpegDecoder::read_DC( unsigned char ht_DC, int* predictor ) {
     unsigned char ht_info = 0x00 + (ht_DC);
-    unsigned char codelen = this->match_huffman_tables( ht_info );
+    unsigned char codelen = this->search_symbol( ht_info );
     
-    int ret = 0;
+    int diff = 0;
     if ( codelen != 0 ) {
-        bool first = read_bit(); ret = 1;
+        bool first = read_bit(); diff = 1;
         for ( int i = 1; i < codelen; i++ ) {
             bool b = read_bit();
-            ret <<= 1; ret += first ? b : !b;
-        } ret = (first)? ret : -ret;
-    } *predictor += ret;
+            diff <<= 1; diff += first ? b : !b;
+        } diff = (first)? diff : -diff;
+    } *predictor += diff;
 
-    // printf("\t\t\tT: %d\tDIFF: 0\tEXTEND(DIFF,T): %d\n", codelen, ret);
+    // printf("\t\t\tT: %d\tDIFF: 0\tEXTEND(DIFF,T): %d\n",
+    //     codelen, ret);
 
-    return el_code { 0, codelen, ret };
+    return DC_code { *predictor, diff, codelen };
 }
 
-el_code jpegDecoder::read_AC( unsigned char ht_AC ) {
+AC_code jpegDecoder::read_AC( unsigned char ht_AC ) {
     unsigned char ht_info = 0x10 + (ht_AC);
-    unsigned char zeros_codelen = this->match_huffman_tables( ht_info );
+    unsigned char zeros_codelen = this->search_symbol( ht_info );
 
     unsigned char zeros   = zeros_codelen >> 4;
     unsigned char codelen = zeros_codelen & 0x0F;
@@ -148,7 +207,7 @@ el_code jpegDecoder::read_AC( unsigned char ht_AC ) {
     int ret = 0;
     if ( codelen != 0 ) {
         bool first = read_bit(); ret = 1;
-        for ( int i = 1; i < codelen; i++ ) {
+        for ( unsigned char i = 1; i < codelen; i++ ) {
             bool b = read_bit();
             ret <<= 1; ret += first ? b : !b;
         } ret = (first)? ret : -ret;
@@ -166,15 +225,35 @@ el_code jpegDecoder::read_AC( unsigned char ht_AC ) {
     //     } printf("\n");
     // }
 
-    return el_code { zeros, codelen, ret };
+    return AC_code { zeros, codelen, ret };
 }
 
+void jpegDecoder::IDCT( double* block ) {
+    double tmp[64] = { 0 };
+    for ( int x = 0; x < 8; x++ ) {
+        for ( int y = 0; y < 8; y++ ) {
+            tmp[x*8+y] = IDCT_el( block, x, y );
         }
     }
+    for ( int x = 0; x < 8; x++ ) {
+        for ( int y = 0; y < 8; y++ ) { block[x*8+y] = tmp[x*8+y]; }
     }
 }
 
+double jpegDecoder::IDCT_el(
+    double* f, unsigned char x, unsigned char y ) {
+    double result = 0;
+    for ( int u = 0; u < 8; u++ ) {
+        for ( int v = 0; v < 8; v++ ) {
+            result += f[u*8+v] * alphacos[ x*8+u ] * alphacos[ y*8+v ];
+        } 
+    } return result;
 }
 
+void jpegDecoder::shift128( double* block ) {
+    for (unsigned char i = 0; i < 8; i++) {
+        for (unsigned char j = 0; j < 8; j++) {
+            block[i*8+j] += 128;
         }
     }
+}
