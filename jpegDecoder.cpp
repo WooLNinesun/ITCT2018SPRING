@@ -4,7 +4,7 @@
 
 using namespace std;
 
-jpegDecoder::jpegDecoder( const char* filepath ){
+jpegDecoder::jpegDecoder( const char *filepath ){
     if ( !jpeg_open( filepath ) ) {
         throw "File open error or isn't a JPEG file.";
     }
@@ -76,23 +76,29 @@ bool jpegDecoder::read_data() {
     for ( int i = 0; i < h; i++ ) {
         for ( int j = 0; j < w; j++ ) {
             // printf("MCU (%d,%d)\n", i, j);
-            MCU mcu = read_MCU();
+            MCU mcu( components, this->Vmax, this->Hmax );
+            read_MCU( &mcu );
+            RGB *b = mcu.toRGB();
+
+
+
+            delete [] b;
         }
     } return true;
 }
 
-MCU jpegDecoder::read_MCU() { MCU mcu;
-    for ( unsigned char i = 0; i < this->components_num; i++ ) {
-        component* cpt = &(this->components[i]);
+bool jpegDecoder::read_MCU( MCU *mcu ) {
+    for ( unsigned char id = 0; id < this->components_num; id++ ) {
+        component *cpt = &(this->components[id]);
         for ( unsigned char h = 0; h < cpt->hori; h++ ) {
             for ( unsigned char w = 0; w < cpt->vert; w++ ) {
-                double* block = mcu.blocks[i][h][w];
+                double *block = mcu->blocks[id][h][w];
 
                 // printf("\tDataUnit: (%d,%d,%d)\n", i, h, w);
                 // printf("\t\tDC Predictor: %d\n\t\tDC:\n",
                 //     this->components[i].DC_predictor);
                 DC_code DC = this->read_DC(
-                    cpt->ht_DC, &this->components[i].DC_predictor );
+                    cpt->ht_DC, &(cpt->DC_predictor) );
                 block[0] = (double)DC.value;
 
                 // printf("\t\tAC:\n");
@@ -103,25 +109,21 @@ MCU jpegDecoder::read_MCU() { MCU mcu;
                             block[zigzag[count++]] = 0;
                         } break;
                     }
-                    for (int j = 0; j < AC.zeros; j++) {
+                    for (int i = 0; i < AC.zeros; i++) {
                         block[zigzag[count++]] = 0;
                     } block[zigzag[count++]] = (double)AC.value;
                 }
 
-                printf("\t\t*Before DeQuantize*\n");
-                for( int j = 0; j < 8; j++ ) {
-                    printf("\t\t");
-                    for ( int k = 0; k < 8; k++ ) {
-                        printf("%4.0f ",block[8*j+k]);
-                    } printf("\n");
-                }
+                // printf("\t\t*Before DeQuantize*\n");
+                // for( unsigned char j = 0; j < 8; j++ ) {
+                //     printf("\t\t");
+                //     for ( unsigned char  = 0; k < 8; k++ ) {
+                //         printf("%4.0f ",block[8*j+k]);
+                //     } printf("\n");
+                // }
 
-                unsigned short* qt = this->quantization_tables[cpt->qt_id];
-                for( int j = 0; j < 8; j++ ) {
-                    for ( int k = 0; k < 8; k++ ) {
-                        block[8*j+k] *= (double)qt[8*j+k];
-                    }
-                }
+                mcu->deQuantize(
+                    this->quantization_tables[cpt->qt_id], block);
 
                 // printf("\t\t*Before IDCT*\n");
                 // for( int j = 0; j < 8; j++ ) {
@@ -131,7 +133,7 @@ MCU jpegDecoder::read_MCU() { MCU mcu;
                 //     } printf("\n");
                 // }
 
-                this->IDCT( block );
+                mcu->IDCT( block );
 
                 // printf("\t\t*After IDCT*\n");
                 // for( int j = 0; j < 8; j++ ) {
@@ -141,30 +143,25 @@ MCU jpegDecoder::read_MCU() { MCU mcu;
                 //     } printf("\n");
                 // }
 
-                // this->shift128( block );
+                // for y block, shift +128
+                if ( id == 1 ) {
+                    mcu->shift128( block );
 
-                // printf("\t\t*After level shift (+128)*\n");
-                // for( int j = 0; j < 8; j++ ) {
-                //     printf("\t\t");
-                //     for ( int k = 0; k < 8; k++ ) {
-                //         printf("%4.0f ",block[8*j+k]);
-                //     } printf("\n");
-                // }
-            }
-        }
-    }
-
-    if ( this->components_num == 3 ) {
-        for (int h = 0; h < Hmax * 8; h++) {
-            for (int w = 0; w < Vmax * 8; w++) {
-                
+                    // printf("\t\t*After level shift (+128)*\n");
+                    // for( int j = 0; j < 8; j++ ) {
+                    //     printf("\t\t");
+                    //     for ( int k = 0; k < 8; k++ ) {
+                    //         printf("%4.0f ",block[8*j+k]);
+                    //     } printf("\n");
+                    // }
+                }
             }
         }
     }
 }
 
 unsigned char jpegDecoder::search_symbol( unsigned char ht_info ) {
-    huffmanTable_el* ht = this->huffmancode_tables.get(ht_info);
+    huffmanTable_el *ht = this->huffmancode_tables.get(ht_info);
     if ( ht == 0 ) { throw "huffman_table get error"; }
 
     unsigned short codeword = 0;
@@ -178,7 +175,7 @@ unsigned char jpegDecoder::search_symbol( unsigned char ht_info ) {
     } throw "key not found.";
 }
 
-DC_code jpegDecoder::read_DC( unsigned char ht_DC, int* predictor ) {
+DC_code jpegDecoder::read_DC( unsigned char ht_DC, int *predictor ) {
     unsigned char ht_info = 0x00 + (ht_DC);
     unsigned char codelen = this->search_symbol( ht_info );
     
@@ -226,34 +223,4 @@ AC_code jpegDecoder::read_AC( unsigned char ht_AC ) {
     // }
 
     return AC_code { zeros, codelen, ret };
-}
-
-void jpegDecoder::IDCT( double* block ) {
-    double tmp[64] = { 0 };
-    for ( int x = 0; x < 8; x++ ) {
-        for ( int y = 0; y < 8; y++ ) {
-            tmp[x*8+y] = IDCT_el( block, x, y );
-        }
-    }
-    for ( int x = 0; x < 8; x++ ) {
-        for ( int y = 0; y < 8; y++ ) { block[x*8+y] = tmp[x*8+y]; }
-    }
-}
-
-double jpegDecoder::IDCT_el(
-    double* f, unsigned char x, unsigned char y ) {
-    double result = 0;
-    for ( int u = 0; u < 8; u++ ) {
-        for ( int v = 0; v < 8; v++ ) {
-            result += f[u*8+v] * alphacos[ x*8+u ] * alphacos[ y*8+v ];
-        } 
-    } return result;
-}
-
-void jpegDecoder::shift128( double* block ) {
-    for (unsigned char i = 0; i < 8; i++) {
-        for (unsigned char j = 0; j < 8; j++) {
-            block[i*8+j] += 128;
-        }
-    }
 }

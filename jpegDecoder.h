@@ -1,7 +1,5 @@
 #include <stdio.h>
 
-#include "huffmanTable.h"
-
 struct image { int height = 0, width = 0; };
 
 struct component {
@@ -11,6 +9,12 @@ struct component {
     unsigned char ht_DC = 0;
     unsigned char ht_AC = 0;
     int DC_predictor = 0;
+};
+
+struct huffmanTable_el {
+    unsigned char num    = 0;
+    unsigned char* symbol  = 0;
+    unsigned short* codeword = 0;
 };
 
 struct DC_code {
@@ -23,10 +27,49 @@ struct AC_code {
     int value = 0;
 };
 
+struct RGB { unsigned char R, G, B; };
+
 class MCU {
     public:
+        MCU( component *cpts, unsigned char Vmax, unsigned char Hmax );
+
         double blocks[5][2][2][64];
+
+        void deQuantize( unsigned short *qt, double *block );
+        void IDCT( double *block );
+        void shift128( double *block );
+        RGB *toRGB();
+
     private:
+        double IDCT_el(
+            double *f, unsigned char x, unsigned char y );
+        double get_cpt_value(
+            unsigned char id, unsigned char v, unsigned char h );
+        unsigned char Normalize( double x );
+
+    private:
+        unsigned char Vmax = 0, Hmax = 0;
+        component *cpts = 0;
+
+        // alpha() * cos table
+        double alphacos[64] = {
+             0.353554,  0.490393,  0.461940,  0.415735, 
+             0.353553,  0.277785,  0.191342,  0.097545, 
+             0.353554,  0.415735,  0.191342, -0.097545, 
+            -0.353553, -0.490393, -0.461940, -0.277785, 
+             0.353554,  0.277785, -0.191342, -0.490393, 
+            -0.353554,  0.097545,  0.461940,  0.415735, 
+             0.353554,  0.097545, -0.461940, -0.277785, 
+             0.353553,  0.415735, -0.191341, -0.490393, 
+             0.353554, -0.097545, -0.461940,  0.277785, 
+             0.353554, -0.415734, -0.191343,  0.490392, 
+             0.353554, -0.277785, -0.191342,  0.490393, 
+            -0.353553, -0.097546,  0.461940, -0.415734, 
+             0.353554, -0.415735,  0.191341,  0.097546, 
+            -0.353554,  0.490393, -0.461939,  0.277784, 
+             0.353554, -0.490393,  0.461940, -0.415734, 
+             0.353553, -0.277784,  0.191340, -0.097543, 
+        };
 };
 
 class jpegDecoder {
@@ -34,18 +77,34 @@ class jpegDecoder {
         jpegDecoder( const char* filepath ); 
         ~jpegDecoder();
 
+    public:
+        class huffmanTables {
+            public:
+                huffmanTable_el DC[2][16];
+                huffmanTable_el AC[2][16];
+
+            public:    
+                huffmanTable_el* get ( unsigned char ht_info ) {
+                    switch(ht_info) {
+                        case  0: { return this->DC[0]; }
+                        case  1: { return this->DC[1]; }
+                        case 16: { return this->AC[0]; }
+                        case 17: { return this->AC[1]; }
+                        default: { return 0;           }
+                    }
+                }
+        };
+
     private:
+        // define in jpegDecoder.cpp
         bool read_ctrl();
         bool read_data();
-        MCU  read_MCU();
+        bool read_MCU( MCU* mcu );
         DC_code read_DC( unsigned char ht_DC, int* predictor );
         AC_code read_AC( unsigned char ht_AC );
         unsigned char search_symbol( unsigned char ht_info );
 
-        void   IDCT( double* block );
-        double IDCT_el( double* f, unsigned char x, unsigned char y );
-        void shift128( double* block );
-
+        // define in jpegHeader.cpp
         bool read_header_skip(
             unsigned char marker, const char name[4] );
         bool read_header_SOF();
@@ -60,6 +119,7 @@ class jpegDecoder {
             unsigned short quantization_tables[4][64] = { { 0 } };
         bool read_header_DRI();
 
+        // define in jpegStream.cpp
         bool hasEOF = false, hasEOI = false;
         bool jpeg_open( const char* filepath );
             FILE *fpt = NULL; 
@@ -76,25 +136,5 @@ class jpegDecoder {
             29, 22, 15, 23, 30, 37, 44, 51,
             58, 59, 52, 45, 38, 31, 39, 46,
             53, 60, 61, 54, 47, 55, 62, 63
-        };
-
-        // cos table
-        double alphacos[64] = {
-			 0.353554,  0.490393,  0.461940,  0.415735, 
-			 0.353553,  0.277785,  0.191342,  0.097545, 
-			 0.353554,  0.415735,  0.191342, -0.097545, 
-			-0.353553, -0.490393, -0.461940, -0.277785, 
-			 0.353554,  0.277785, -0.191342, -0.490393, 
-			-0.353554,  0.097545,  0.461940,  0.415735, 
-			 0.353554,  0.097545, -0.461940, -0.277785, 
-			 0.353553,  0.415735, -0.191341, -0.490393, 
-			 0.353554, -0.097545, -0.461940,  0.277785, 
-			 0.353554, -0.415734, -0.191343,  0.490392, 
-			 0.353554, -0.277785, -0.191342,  0.490393, 
-			-0.353553, -0.097546,  0.461940, -0.415734, 
-			 0.353554, -0.415735,  0.191341,  0.097546, 
-			-0.353554,  0.490393, -0.461939,  0.277784, 
-			 0.353554, -0.490393,  0.461940, -0.415734, 
-			 0.353553, -0.277784,  0.191340, -0.097543, 
         };
 };

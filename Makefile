@@ -1,18 +1,16 @@
 TARGET = jpegDecoder.out
-OBJS = main.o jpegDecoder.o jpegStream.o jpegHeader.o huffmanTable.o 
+OBJS = main.o \
+	   jpegDecoder.o jpegStream.o jpegHeader.o jpegMCU.o
+
+STDC++ = -std=c++14
 
 $(TARGET) : $(OBJS)
-	g++ $^ -std=c++14 -o $@
+	g++ $(STDC++) $^ -o $@
 
-jpegStream.o: jpegStream.cpp jpegDecoder.h
-	g++ -c $^ -std=c++14
-jpegHeader.o: jpegHeader.cpp jpegDecoder.h
-	g++ -c $^ -std=c++14
-
-%.o: %.cpp %.h
-	g++ -c $^ -std=c++14
-%.o: %.cpp
-	g++ -c $^ -std=c++14
+main.o: main.cpp
+	g++ $(STDC++) -c $^
+%.o: %.cpp jpegDecoder.h
+	g++ $(STDC++) -c $^
 
 clean:
 	rm *.o *.h.gch *.out
