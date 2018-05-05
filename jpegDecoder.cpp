@@ -77,8 +77,7 @@ bool jpegDecoder::read_data() {
     unsigned int mcu_height = 8 * this->Vmax,
                  mcu_width  = 8 * this->Hmax;
     int mcu_height_num = (this->img.height - 1) / mcu_height + 1,
-        mcu_width_num  = (this->img.width - 1)  / mcu_width  + 1;
-        
+        mcu_width_num  = (this->img.width  - 1) / mcu_width  + 1;
 
     bmpStream bmp(
         mcu_height * mcu_height_num, mcu_width * mcu_width_num, 24);
@@ -95,9 +94,9 @@ bool jpegDecoder::read_data() {
                     int dh = h - i*mcu_height, dw = w - j*mcu_width;
                     bmp.set_pixel_RGB(
                         h, w,
-                        RGB_mcu[dh*mcu_height+dw].R,
-                        RGB_mcu[dh*mcu_height+dw].G,
-                        RGB_mcu[dh*mcu_height+dw].B
+                        RGB_mcu[dh*mcu_width+dw].R,
+                        RGB_mcu[dh*mcu_width+dw].G,
+                        RGB_mcu[dh*mcu_width+dw].B
                     );
                 }
             }
@@ -113,11 +112,11 @@ bool jpegDecoder::read_data() {
 bool jpegDecoder::read_MCU( MCU *mcu ) {
     for ( unsigned char id = 0; id < this->components_num; id++ ) {
         component *cpt = &(this->components[id]);
-        for ( unsigned char h = 0; h < cpt->hori; h++ ) {
-            for ( unsigned char w = 0; w < cpt->vert; w++ ) {
+        for ( unsigned char h = 0; h < cpt->vert; h++ ) {
+            for ( unsigned char w = 0; w < cpt->hori; w++ ) {
                 double *block = mcu->blocks[id][h][w];
 
-                // printf("\tDataUnit: (%d,%d,%d)\n", i, h, w);
+                // printf("\tDataUnit: (%d,%d,%d)\n", id, h, w);
                 // printf("\t\tDC Predictor: %d\n\t\tDC:\n",
                 //     this->components[i].DC_predictor);
                 DC_code DC = this->read_DC(

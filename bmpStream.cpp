@@ -135,7 +135,6 @@ void bmpStream::set_pixel_RGB(
 
 	if ( w < 0 || w >= this->header.width ||
          h < 0 || h >= this->header.height   ) {
-		printf("(%d, %d)\n", h, w);	
 		throw "BMP_INVALID_ARGUMENT";
 	}
     if ( this->header.bits_per_pixel != 24 &&
@@ -143,7 +142,7 @@ void bmpStream::set_pixel_RGB(
 		throw "BMP_TYPE_MISMATCH";
 	}
 
-    bytes_per_pixel = this->header.bits_per_pixel >> 3;
+	bytes_per_pixel = this->header.bits_per_pixel >> 3;
 
     /* Row's size is rounded up to the next multiple of 4 bytes */
     bytes_per_row = this->header.img_data_size / this->header.height;

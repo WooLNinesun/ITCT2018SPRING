@@ -56,9 +56,9 @@ RGB* MCU::toRGB() {
             double Cb = this->get_cpt_value(1, i, j);
             double Cr = this->get_cpt_value(2, i, j);
 
-            RBG_block[i*V+j].R = Normalize(Y + 1.402*Cr);
-            RBG_block[i*V+j].G = Normalize(Y - 0.34414*Cb - 0.71414*Cr);
-            RBG_block[i*V+j].B = Normalize(Y + 1.772*Cb);
+            RBG_block[i*H+j].R = Normalize(Y + 1.402  *Cr);
+            RBG_block[i*H+j].G = Normalize(Y - 0.34414*Cb - 0.71414*Cr);
+            RBG_block[i*H+j].B = Normalize(Y + 1.772  *Cb);
         }
     }
 
