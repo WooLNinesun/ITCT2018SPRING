@@ -1,6 +1,6 @@
 TARGET = jpegDecoder.out
 OBJS = main.o \
-	   jpegDecoder.o jpegStream.o jpegHeader.o jpegMCU.o \
+	   jpegStream.o jpegRead.o jpegHeader.o jpegMCU.o \
 	   bmpStream.o
 
 STDC++ = -std=c++11
@@ -13,7 +13,7 @@ main.o: main.cpp
 bmpStream.o: bmpStream.cpp bmpStream.h
 	g++ $(STDC++) -c $^
 
-%.o: %.cpp jpegDecoder.h
+%.o: %.cpp jpegStream.h
 	g++ $(STDC++) -c $^
 
 clean:

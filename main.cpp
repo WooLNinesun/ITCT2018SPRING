@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "jpegDecoder.h"
+#include "jpegStream.h"
 
 using namespace std;
 
