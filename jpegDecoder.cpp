@@ -1,18 +1,19 @@
 #include <stdio.h>
 
 #include "jpegDecoder.h"
+#include "bmpStream.h"
 
 using namespace std;
 
 jpegDecoder::jpegDecoder( const char *filepath ){
-    if ( !jpeg_open( filepath ) ) {
+    if ( !this->jpeg_open( filepath ) ) {
         throw "File open error or isn't a JPEG file.";
     }
 
     while ( !(this->hasEOI) ) {
-        switch( read_byte() ) {
+        switch( this->read_byte() ) {
             case 0xFF: {
-                if ( read_ctrl() ) { break; }
+                if ( this->read_ctrl() ) { break; }
             }
             default: {
                 throw "File format error.";
@@ -31,10 +32,12 @@ jpegDecoder::~jpegDecoder() {
             delete [] ht[j].codeword;
         }
     }
+
+    fclose( this->fpt );
 }
 
 bool jpegDecoder::read_ctrl() {
-    unsigned char marker = read_byte();
+    unsigned char marker = this->read_byte();
 
     switch( marker ) {
         // SOF0 = Start Of Frame (baseline DCT)
@@ -71,20 +74,40 @@ bool jpegDecoder::read_ctrl() {
 }
 
 bool jpegDecoder::read_data() {
-    int w = (this->img.width - 1)  / (8 * this->Hmax) + 1;
-    int h = (this->img.height - 1) / (8 * this->Vmax) + 1;
-    for ( int i = 0; i < h; i++ ) {
-        for ( int j = 0; j < w; j++ ) {
+    unsigned int mcu_height = 8 * this->Vmax,
+                 mcu_width  = 8 * this->Hmax;
+    int mcu_height_num = (this->img.height - 1) / mcu_height + 1,
+        mcu_width_num  = (this->img.width - 1)  / mcu_width  + 1;
+        
+
+    bmpStream bmp(
+        mcu_height * mcu_height_num, mcu_width * mcu_width_num, 24);
+
+    for ( int i = 0; i < mcu_height_num; i++ ) {
+        for ( int j = 0; j < mcu_width_num; j++ ) {
             // printf("MCU (%d,%d)\n", i, j);
             MCU mcu( components, this->Vmax, this->Hmax );
             read_MCU( &mcu );
-            RGB *b = mcu.toRGB();
+            RGB *RGB_mcu = mcu.toRGB();
 
+            for (int h = i*mcu_height; h < (i+1)*mcu_height; h++) {
+                for (int w = j*mcu_width; w < (j+1)*mcu_width; w++) {
+                    int dh = h - i*mcu_height, dw = w - j*mcu_width;
+                    bmp.set_pixel_RGB(
+                        h, w,
+                        RGB_mcu[dh*mcu_height+dw].R,
+                        RGB_mcu[dh*mcu_height+dw].G,
+                        RGB_mcu[dh*mcu_height+dw].B
+                    );
+                }
+            }
 
-
-            delete [] b;
+            delete [] RGB_mcu;
         }
-    } return true;
+    }
+    bmp.write_file( "out.bmp" );
+
+    return true;
 }
 
 bool jpegDecoder::read_MCU( MCU *mcu ) {
@@ -144,7 +167,7 @@ bool jpegDecoder::read_MCU( MCU *mcu ) {
                 // }
 
                 // for y block, shift +128
-                if ( id == 1 ) {
+                if ( id == 0 ) {
                     mcu->shift128( block );
 
                     // printf("\t\t*After level shift (+128)*\n");
@@ -181,9 +204,9 @@ DC_code jpegDecoder::read_DC( unsigned char ht_DC, int *predictor ) {
     
     int diff = 0;
     if ( codelen != 0 ) {
-        bool first = read_bit(); diff = 1;
+        bool first = this->read_bit(); diff = 1;
         for ( int i = 1; i < codelen; i++ ) {
-            bool b = read_bit();
+            bool b = this->read_bit();
             diff <<= 1; diff += first ? b : !b;
         } diff = (first)? diff : -diff;
     } *predictor += diff;
@@ -191,7 +214,7 @@ DC_code jpegDecoder::read_DC( unsigned char ht_DC, int *predictor ) {
     // printf("\t\t\tT: %d\tDIFF: 0\tEXTEND(DIFF,T): %d\n",
     //     codelen, ret);
 
-    return DC_code { *predictor, diff, codelen };
+    return DC_code { .value = *predictor, .diff = diff, .size = codelen };;
 }
 
 AC_code jpegDecoder::read_AC( unsigned char ht_AC ) {
@@ -203,9 +226,9 @@ AC_code jpegDecoder::read_AC( unsigned char ht_AC ) {
     
     int ret = 0;
     if ( codelen != 0 ) {
-        bool first = read_bit(); ret = 1;
+        bool first = this->read_bit(); ret = 1;
         for ( unsigned char i = 1; i < codelen; i++ ) {
-            bool b = read_bit();
+            bool b = this->read_bit();
             ret <<= 1; ret += first ? b : !b;
         } ret = (first)? ret : -ret;
     } else if ( zeros != 0 && zeros != 0x0F ) {
@@ -222,5 +245,5 @@ AC_code jpegDecoder::read_AC( unsigned char ht_AC ) {
     //     } printf("\n");
     // }
 
-    return AC_code { zeros, codelen, ret };
+    return AC_code { .value = ret, .zeros = zeros, .size = codelen };
 }
