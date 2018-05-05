@@ -18,14 +18,23 @@ void MCU::deQuantize( unsigned short *qt, double *block ) {
 }
 
 void MCU::IDCT( double *block ) {
-    double tmp[64] = { 0 };
+    double tmp1[64] = { 0 }, tmp2[64] = { 0 };
     for ( int x = 0; x < 8; x++ ) {
         for ( int y = 0; y < 8; y++ ) {
-            tmp[x*8+y] = this->IDCT_el( block, x, y );
+            for ( int v = 0; v < 8; v++ ) {
+                 tmp1[x*8+y] += block[x*8+v]*this->alphacos[ y*8+v ];
+            }
         }
     }
     for ( int x = 0; x < 8; x++ ) {
-        for ( int y = 0; y < 8; y++ ) { block[x*8+y] = tmp[x*8+y]; }
+        for ( int y = 0; y < 8; y++ ) {
+            for ( int u = 0; u < 8; u++ ) {
+                tmp2[x*8+y] +=  tmp1[u*8+y]*this->alphacos[ x*8+u ];
+            }
+        }
+    }
+    for ( int x = 0; x < 8; x++ ) {
+        for ( int y = 0; y < 8; y++ ) { block[x*8+y] = tmp2[x*8+y]; }
     }
 }
 
@@ -35,17 +44,6 @@ void MCU::shift128( double *block ) {
             block[i*8+j] += 128;
         }
     }
-}
-
-double MCU::IDCT_el( double* f, unsigned char x, unsigned char y ) {
-    double result = 0;
-    for ( int u = 0; u < 8; u++ ) {
-        for ( int v = 0; v < 8; v++ ) {
-            result += f[u*8+v]
-                        *this->alphacos[ x*8+u ]
-                        *this->alphacos[ y*8+v ];
-        }
-    } return result;
 }
 
 RGB* MCU::toRGB() {
