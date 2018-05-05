@@ -5,7 +5,7 @@
 using namespace std;
 
 bool jpegDecoder::jpeg_open( const char* filepath ) {
-    return( (this->fpt = fopen( filepath, "r" )) == NULL )? false : true;
+    return( (this->fpt = fopen( filepath, "rb" )) == NULL )? false : true;
 }
 
 unsigned char jpegDecoder::read_byte() {

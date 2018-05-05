@@ -7,10 +7,10 @@ using namespace std;
 bool jpegDecoder::read_header_skip (
     unsigned char marker, const char name[4] ) {
 
-    unsigned short len = (read_byte() << 8) + read_byte();
+    unsigned short len = (this->read_byte() << 8) + this->read_byte();
     // printf("ff%x - %s\n\tLq: %d\n", marker, name, len);
 
-    for ( int i = 0; i < len-2; i++ ) { read_byte(); }    
+    for ( int i = 0; i < len-2; i++ ) { this->read_byte(); }    
     return true;
 }
 
@@ -23,25 +23,28 @@ bool jpegDecoder::read_header_skip (
             component_id + sampling factor ( hor + vert ) + qt_num
  */
 bool jpegDecoder::read_header_SOF() {
-    unsigned short len = (read_byte() << 8) + read_byte();
+    unsigned short len = (this->read_byte() << 8) + this->read_byte();
 
-    unsigned char precision = read_byte();
-    this->img.height = (read_byte() << 8) + read_byte();
-    this->img.width  = (read_byte() << 8) + read_byte();
+    unsigned char precision = this->read_byte();
+    this->img.height = (this->read_byte() << 8) + this->read_byte();
+    this->img.width  = (this->read_byte() << 8) + this->read_byte();
+    if( img.height <= 0 || img.width <= 0 ) {
+        throw "invalid image height or width.";
+    }
 
     // printf("ffc0 - SOF - Baseline DCT, Huffman coding\n");
     // printf("\tLf: %d\tP: %d\tY: %d\tX: %d",
     //     len, (precision? 8 : 16), this->img.height, this->img.width);
 
-    this->components_num = read_byte();
+    this->components_num = this->read_byte();
     // printf("\tNf: %d\n", this->components_num);
     for ( int i = 0; i < components_num; i++ ) {
-        unsigned char component_id = read_byte() - 1;
-        component* component = &(this->components[component_id]);
-        unsigned char sample_factor = read_byte();
+        unsigned char component_id = this->read_byte() - 1;
+        component *component = &(this->components[component_id]);
+        unsigned char sample_factor = this->read_byte();
         component->hori = sample_factor >> 4;
         component->vert = sample_factor & 0x0F;
-        component->qt_id = read_byte();
+        component->qt_id = this->read_byte();
 
         if ( this->Hmax < component->hori ) { this->Hmax = component->hori; }
         if ( this->Vmax < component->vert ) { this->Vmax = component->vert; }
@@ -60,11 +63,11 @@ bool jpegDecoder::read_header_SOF() {
  (m) Value associated with each Huffman code
  */
 bool jpegDecoder::read_header_DHT() {
-    unsigned short len = (read_byte() << 8) + read_byte();
+    unsigned short len = (this->read_byte() << 8) + this->read_byte();
     // printf("ffc4 - DHT\n\tLh: %d\n", len);
 
     while ( len - 2 ) {
-        unsigned char ht_info = read_byte();
+        unsigned char ht_info = this->read_byte();
         unsigned char Tc = ht_info >> 4, Th = ht_info & 0x0F;
 
         huffmanTable_el* ht = this->huffmancode_tables.get(ht_info);
@@ -72,7 +75,7 @@ bool jpegDecoder::read_header_DHT() {
 
         unsigned char total_read_count = 16;
         for ( int i = 0; i < 16; i++ ) {
-            ht[i].num = read_byte();
+            ht[i].num = this->read_byte();
             total_read_count += ht[i].num;
         }
 
@@ -89,7 +92,7 @@ bool jpegDecoder::read_header_DHT() {
             ht[i].symbol =   new unsigned char [ht[i].num];
             ht[i].codeword = new unsigned short[ht[i].num];
             for ( unsigned char j = 0; j < ht[i].num; j++ ) {
-                ht[i].symbol[j]   = read_byte();
+                ht[i].symbol[j]   = this->read_byte();
                 ht[i].codeword[j] = cur_codeword++;
             }
         }
@@ -111,8 +114,8 @@ bool jpegDecoder::read_header_DHT() {
  (2) len : data len, include itself
  */ 
 bool jpegDecoder::read_header_SOS() {
-    unsigned short len = (read_byte() << 8) + read_byte();
-    unsigned char sos_components_num = read_byte();
+    unsigned short len = (this->read_byte() << 8) + this->read_byte();
+    unsigned char sos_components_num = this->read_byte();
 
     if ( this->components_num == 0 ) {
         throw "SOF header not present or specifies 0 components.";
@@ -123,20 +126,21 @@ bool jpegDecoder::read_header_SOS() {
     }
 
     for ( int i = 0; i < this->components_num; i++ ) {
-        unsigned char component_id = read_byte() - 1;
-        unsigned char DCAC = read_byte();
+        unsigned char component_id = this->read_byte() - 1;
+        unsigned char DCAC = this->read_byte();
         this->components[component_id].ht_DC = DCAC >> 4;
         this->components[component_id].ht_AC = DCAC & 0x0F;
     }
 
-    unsigned char zigzag_start = read_byte();
-    unsigned char zigzag_end   = read_byte();
-    unsigned char dummy        = read_byte();
+    unsigned char zigzag_start = this->read_byte();
+    unsigned char zigzag_end   = this->read_byte();
+    unsigned char dummy        = this->read_byte();
 
     // printf("ffc4 - DHT\n\tLs: %d\tNf: %d\n", len, sos_components_num);
     // for ( int i = 0; i < this->components_num; i++ ) {
     //     component* cpt = &(this->components[i]);
-    //     printf("\tCs: %d\tTd: %d\tTa: %d\n", i+1, cpt->ht_DC, cpt->ht_AC);
+    //     printf("\tCs: %d\tTd: %d\tTa: %d\n",
+    //         i+1, cpt->ht_DC, cpt->ht_AC);
     // } printf("\tSs: %d\tSe: %d\tAh: %d\tAl: %d\n",
     //     zigzag_start, zigzag_end, dummy >> 4, dummy & 0x0F);
 
@@ -154,11 +158,11 @@ bool jpegDecoder::read_header_SOS() {
         qt_id = 1 ==> chrominance
  */
 bool jpegDecoder::read_header_DQT() {
-    unsigned short len = (read_byte() << 8) + read_byte();
+    unsigned short len = (this->read_byte() << 8) + this->read_byte();
     // printf("ffdb - DQT\n\tLq: %d\n", len);
 
     while ( len - 2 ) {
-        unsigned char qt_info = read_byte();
+        unsigned char qt_info = this->read_byte();
         unsigned char qt_precision = qt_info >> 4, qt_id = qt_info & 0x0F;
         if ( len - 2 >= 1 + 64*(qt_precision? 2 : 1) ) { 
             len -= 1 + 64*(qt_precision? 2 : 1);
@@ -167,8 +171,8 @@ bool jpegDecoder::read_header_DQT() {
         unsigned short* qt = this->quantization_tables[qt_id];
         for ( int i = 0; i < 64; i++ ) {
             if ( qt_precision ) {
-                qt[ zigzag[i] ] = (read_byte() << 8) + read_byte();
-            } else { qt[ zigzag[i] ] = read_byte(); }
+                qt[zigzag[i]] = (this->read_byte() << 8) + this->read_byte();
+            } else { qt[ zigzag[i] ] = this->read_byte(); }
         }
 
         // printf("\tPq: %d\tTq: %d\tQk: %d\n",
@@ -189,7 +193,7 @@ bool jpegDecoder::read_header_DQT() {
  */
 bool jpegDecoder::read_header_DRI() {
     printf("DRI\n");
-    unsigned short len = (read_byte() << 8) + read_byte();
-    for ( int i = 0; i < len-2; i++ ) { read_byte(); }
+    unsigned short len = (this->read_byte() << 8) + this->read_byte();
+    for ( int i = 0; i < len-2; i++ ) { this->read_byte(); }
     return true;
 }

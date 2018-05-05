@@ -1,34 +1,38 @@
+#ifndef _JPEGDECODER_H_
+#define _JPEGDECODER_H_
+
 #include <stdio.h>
 
-struct image { int height = 0, width = 0; };
+typedef struct _image { int height = 0, width = 0; } image;
 
-struct component {
+typedef struct _component {
+    int DC_predictor    = 0;
     unsigned char hori  = 0;
     unsigned char vert  = 0;
     unsigned char qt_id = 0;
     unsigned char ht_DC = 0;
     unsigned char ht_AC = 0;
-    int DC_predictor = 0;
-};
+} component;
 
-struct huffmanTable_el {
-    unsigned char num    = 0;
-    unsigned char* symbol  = 0;
-    unsigned short* codeword = 0;
-};
+typedef struct _huffmanTable_el {
+    unsigned char num        = 0;
+    unsigned char* symbol    = NULL;
+    unsigned short* codeword = NULL;
+} huffmanTable_el;
 
-struct DC_code {
-    int value = 0, diff = 0;
-    unsigned char size = 0;
-};
+typedef struct _DC_code {
+    int value, diff;
+    unsigned char size;
+} DC_code;
 
-struct AC_code {
-    unsigned char zeros = 0, size = 0;
-    int value = 0;
-};
+typedef struct _AC_code {
+    int value;
+    unsigned char zeros, size;
+} AC_code;
 
-struct RGB { unsigned char R, G, B; };
+typedef struct _RGB { unsigned char R, G, B; } RGB;
 
+// define in jpegMCU.cpp
 class MCU {
     public:
         MCU( component *cpts, unsigned char Vmax, unsigned char Hmax );
@@ -41,17 +45,15 @@ class MCU {
         RGB *toRGB();
 
     private:
-        double IDCT_el(
-            double *f, unsigned char x, unsigned char y );
         double get_cpt_value(
             unsigned char id, unsigned char v, unsigned char h );
         unsigned char Normalize( double x );
 
     private:
         unsigned char Vmax = 0, Hmax = 0;
-        component *cpts = 0;
+        component *cpts = NULL;
 
-        // alpha() * cos table
+        // alpha() * cos table for idct
         double alphacos[64] = {
              0.353554,  0.490393,  0.461940,  0.415735, 
              0.353553,  0.277785,  0.191342,  0.097545, 
@@ -74,7 +76,7 @@ class MCU {
 
 class jpegDecoder {
     public:
-        jpegDecoder( const char* filepath ); 
+        jpegDecoder( const char* filepath );
         ~jpegDecoder();
 
     public:
@@ -138,3 +140,5 @@ class jpegDecoder {
             53, 60, 61, 54, 47, 55, 62, 63
         };
 };
+
+#endif
