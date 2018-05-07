@@ -1,4 +1,4 @@
-TARGET = jpegDecoder.out
+TARGET = main
 OBJS = main.o \
 	   jpegStream.o jpegRead.o jpegHeader.o jpegMCU.o \
 	   bmpStream.o

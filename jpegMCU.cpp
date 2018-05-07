@@ -17,24 +17,27 @@ void MCU::deQuantize( unsigned short *qt, double *block ) {
     }
 }
 
+/*
+ alphacos define in jpegStream.h, div2sqrt = 1/sqrt(2), pi = 3.14..
+    alphacos[i*8+j] = (j? 1:div2sqrt) * cos( (2*i+1)*j*pi / 16.0 );
+ use two 1-D IDCT to calculate 2-D IDCT.
+ */
 void MCU::IDCT( double *block ) {
-    double tmp1[64] = { 0 }, tmp2[64] = { 0 };
+    double tmp[64] = { 0 };
     for ( int x = 0; x < 8; x++ ) {
         for ( int y = 0; y < 8; y++ ) {
             for ( int v = 0; v < 8; v++ ) {
-                 tmp1[x*8+y] += block[x*8+v]*this->alphacos[ y*8+v ];
+                tmp[x*8+y] += block[x*8+v]*this->alphacos[ y*8+v ];
             }
         }
     }
     for ( int x = 0; x < 8; x++ ) {
         for ( int y = 0; y < 8; y++ ) {
+            block[x*8+y] = 0;
             for ( int u = 0; u < 8; u++ ) {
-                tmp2[x*8+y] +=  tmp1[u*8+y]*this->alphacos[ x*8+u ];
+                block[x*8+y] +=  tmp[u*8+y]*this->alphacos[ x*8+u ];
             }
         }
-    }
-    for ( int x = 0; x < 8; x++ ) {
-        for ( int y = 0; y < 8; y++ ) { block[x*8+y] = tmp2[x*8+y]; }
     }
 }
 

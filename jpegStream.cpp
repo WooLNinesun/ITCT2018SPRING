@@ -1,14 +1,18 @@
 #include <stdio.h>
+#include <string.h>
 
 #include "jpegStream.h"
 #include "bmpStream.h"
 
 using namespace std;
 
-jpegDecoder::jpegDecoder( const char *filepath ){
+jpegDecoder::jpegDecoder( const char *filepath, const char *out ){
     if ( !this->jpeg_open( filepath ) ) {
         throw "File open error or isn't a JPEG file.";
     }
+
+    char *out_tmp = new char[strlen(out)];
+    strcpy(out_tmp, out); this->output_file = out_tmp;
 
     while ( !(this->hasEOI) ) {
         switch( this->read_byte() ) {
@@ -33,6 +37,8 @@ jpegDecoder::~jpegDecoder() {
         }
     }
 
+    delete [] this->output_file;
+
     fclose( this->fpt );
 }
 
@@ -55,7 +61,7 @@ bool jpegDecoder::read_ctrl() {
         // DNL = Define Number of Lines. skip it
         case 0xDC: { return this->read_header_skip( marker, "DNL" ); }
         // DRI = Define Restart Interval. skip it
-        case 0xDD: { return this->read_header_DRI(); }
+        case 0xDD: { return this->read_header_skip( marker, "DRI" ); }
         // DHP = Define Hierarchical Progression
         case 0xDE: { return this->read_header_skip( marker, "DHP" ); }
         // EXP = Expand Reference Components
@@ -104,7 +110,7 @@ bool jpegDecoder::read_data() {
             delete [] RGB_mcu;
         }
     }
-    bmp.write_file( "out.bmp" );
+    bmp.write_file( this->output_file );
 
     return true;
 }
@@ -118,7 +124,7 @@ bool jpegDecoder::read_MCU( MCU *mcu ) {
 
                 // printf("\tDataUnit: (%d,%d,%d)\n", id, h, w);
                 // printf("\t\tDC Predictor: %d\n\t\tDC:\n",
-                //     this->components[i].DC_predictor);
+                //     this->components[id].DC_predictor);
                 DC_code DC = this->read_DC(
                     cpt->ht_DC, &(cpt->DC_predictor) );
                 block[0] = (double)DC.value;
@@ -139,7 +145,7 @@ bool jpegDecoder::read_MCU( MCU *mcu ) {
                 // printf("\t\t*Before DeQuantize*\n");
                 // for( unsigned char j = 0; j < 8; j++ ) {
                 //     printf("\t\t");
-                //     for ( unsigned char  = 0; k < 8; k++ ) {
+                //     for ( unsigned char k = 0; k < 8; k++ ) {
                 //         printf("%4.0f ",block[8*j+k]);
                 //     } printf("\n");
                 // }

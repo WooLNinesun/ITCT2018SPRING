@@ -49,12 +49,25 @@ class MCU {
             unsigned char id, unsigned char v, unsigned char h );
         unsigned char Normalize( double x );
 
+        // void generator_alpahcos() {
+        //     double pi = 3.14159265358979323846;
+        //     double div2sqrt = 0.70710678118;
+        //     double alphacos[64] = { 0 };
+        //     for( int i= 0; i < 8; i++ ) {
+        //         for( int j= 0; j < 8; j++ ) {
+        //             alphacos[i*8+j] = (j? 1:div2sqrt)
+        //                               *cos((2*i+1)*j*pi / 16.0 );
+        //             printf("%9f ", alphacos[i*8+j]/2);
+        //         } printf("\n");
+        //     }
+        // }
+
     private:
         unsigned char Vmax = 0, Hmax = 0;
         component *cpts = NULL;
 
         // alpha() * cos table for idct
-        double alphacos[64] = {
+        const double alphacos[64] = {
              0.353554,  0.490393,  0.461940,  0.415735, 
              0.353553,  0.277785,  0.191342,  0.097545, 
              0.353554,  0.415735,  0.191342, -0.097545, 
@@ -76,7 +89,7 @@ class MCU {
 
 class jpegDecoder {
     public:
-        jpegDecoder( const char* filepath );
+        jpegDecoder( const char* filepath, const char *out );
         ~jpegDecoder();
 
     public:
@@ -101,6 +114,7 @@ class jpegDecoder {
         // define in jpegDecoder.cpp
         bool read_ctrl();
         bool read_data();
+            char *output_file;
         bool read_MCU( MCU* mcu );
         DC_code read_DC( unsigned char ht_DC, int* predictor );
         AC_code read_AC( unsigned char ht_AC );
@@ -129,7 +143,7 @@ class jpegDecoder {
         bool read_bit();
 
         // zigzag index table
-        char zigzag[64] = {
+        const char zigzag[64] = {
             0,   1,  8, 16,  9,  2,  3, 10,
             17, 24, 32, 25, 18, 11,  4,  5,
             12, 19, 26, 33, 40, 48, 41, 34,

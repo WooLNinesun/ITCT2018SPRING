@@ -4,6 +4,10 @@
 
 using namespace std;
 
+/* read_skip
+ (2) len : data len, include itself
+ and read (len-2) bytes to skip this header.
+ */
 bool jpegDecoder::read_header_skip (
     unsigned char marker, const char name[4] ) {
 
@@ -18,7 +22,7 @@ bool jpegDecoder::read_header_skip (
  (2) len : data len, include itself
  (1) precision
  (4) img height and width
- (1*3n) number of components, for every component i is 3 bytes
+ (1+3n) number of components + for every component i is 3 bytes
         for every component:
             component_id + sampling factor ( hor + vert ) + qt_num
  */
@@ -79,7 +83,7 @@ bool jpegDecoder::read_header_DHT() {
             total_read_count += ht[i].num;
         }
 
-        if ( len - 2 >= 1 + total_read_count ) { 
+        if ( len - 2 >= 1 + total_read_count ) {
             len -= 1 + total_read_count;
         } else { throw "DQT read error."; }
 
@@ -112,6 +116,10 @@ bool jpegDecoder::read_header_DHT() {
 
 /* read_SOS
  (2) len : data len, include itself
+ (1) components_num n.
+ (1+2n) number of components + for every component i is 2 bytes
+        for every component:
+            component_id + ht_id ( DC + AC )
  */ 
 bool jpegDecoder::read_header_SOS() {
     unsigned short len = (this->read_byte() << 8) + this->read_byte();
@@ -185,15 +193,5 @@ bool jpegDecoder::read_header_DQT() {
         // }
     }
     
-    return true;
-}
-
-/* read_DRI
- (2) len : data len, include itself
- */
-bool jpegDecoder::read_header_DRI() {
-    printf("DRI\n");
-    unsigned short len = (this->read_byte() << 8) + this->read_byte();
-    for ( int i = 0; i < len-2; i++ ) { this->read_byte(); }
     return true;
 }
